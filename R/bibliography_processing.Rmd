@@ -1,0 +1,217 @@
+---
+title: "Processing bibliographic files"
+author: "Patrice Pottier"
+date: '2022-11-02'
+output: html_document
+---
+
+# Load relevant packages
+```{r}
+library(litsearchr)
+library(synthesisr)
+library(tidyverse)
+library(stringr)
+```
+
+# **Remove irrelevant studies from Pottier et al. 2022**
+
+## Removing irrelevant papers from English searches
+
+```{r, English documents}
+eng<-import_results(file="Bibliographic_searches/English_searches/from_Pottier_et_al_2022/articles_screened_abstracts_english.ris")
+eng<-clean_df(eng) # Cleans column and author names
+
+eng<- eng %>% filter(!grepl("Not amphibian", notes)) %>% 
+              filter(!grepl("Duplicate", notes)) # 685 papers
+```
+
+## Removing irrelevant papers English papers found through non-English searches in Google Scholar
+
+```{r, English documents found through Scholar}
+eng_scholar<-import_results(file="Bibliographic_searches/non-English_searches/English_from_non_English_searches/articles_screened_abstracts_english_scholar.ris")
+eng_scholar<-clean_df(eng_scholar) # Cleans column and author names
+
+eng_scholar <- eng_scholar %>% filter(!grepl("Not amphibian", notes)) # 50 papers
+```
+
+## Removing irrelevant French documents
+
+```{r, French documents}
+french<-import_results(file="Bibliographic_searches/non-English_searches/French/from_Pottier_et_al_2022/articles_screened_abstracts_french.ris")
+french<-clean_df(french) # Cleans column and author names
+
+french <- french %>% filter(!grepl("Not amphibian", notes))  %>% 
+                     filter(!grepl("Not designated language", notes)) # 19 papers
+```
+
+## Removing irrelevant Portuguese documents
+
+```{r, Portuguese documents}
+port<-import_results(file="Bibliographic_searches/non-English_searches/Portuguese/from_Pottier_et_al_2022/articles_screened_abstracts_portuguese.ris")
+port<-clean_df(port) # Cleans column and author names
+
+port <- port %>% filter(!grepl("Not amphibian", notes))  %>% 
+                 filter(!grepl("not designated language", notes)) %>% 
+                 filter(!grepl("trad_chineseish", notes))  %>%  
+                 filter(!grepl("English", notes)) %>% 
+                 filter(!grepl("Catalan", notes)) %>% 
+                 filter(!grepl("German", notes)) %>% 
+                 filter(!grepl("French", notes))# 307 papers
+```
+
+
+## Removing irrelevant traditional chinese documents
+
+```{r, simplified Chinese documents}
+span<-import_results(file="Bibliographic_searches/non-English_searches/Spanish/from_Pottier_et_al_2022/articles_screened_abstracts_spanish.ris")
+span<-clean_df(span) # Cleans column and author names
+
+span <- span %>% filter(!grepl("Not amphibian", notes))  %>% 
+                 filter(!grepl("not designated language", notes)) %>% 
+                 filter(!grepl("foreign language", notes))  %>%  
+                 filter(!grepl("duplicate", notes)) %>% 
+                 filter(!grepl("Port", notes)) %>% 
+                 filter(!grepl("En", notes)) %>% 
+                 filter(!grepl("Cat", notes)) # 182 papers
+```
+
+## Removing irrelevant traditional Chinese documents
+```{r, traditional Chinese documents}
+trad_chinese<-import_results(file="Bibliographic_searches/non-English_searches/traditional_Chinese/from_Pottier_et_al_2022/articles_screened_abstracts_trad_chinese.ris")
+trad_chinese<-clean_df(trad_chinese) # Cleans column and author names
+
+trad_chinese <- trad_chinese %>% filter(!grepl("amphibian", notes))  %>% 
+                 filter(!grepl("Not designated language", notes)) %>% 
+                 filter(!grepl("error from Rayyan", notes))   # 10 papers
+```
+
+
+Japanese and Chinese (simplified) documents did not need to undergo this process because none of the excluded studies were on amphibians; or exclusion labels were not recorded. 
+
+# **Combine files and deduplicate**
+
+For each language, we want to combine the files taken from Pottier et al. 2022 with the new searches performed in 2022. 
+We also added papers from from backward searches in Navas et al. 2021, Leiva et al. 2019, Bennett et al. 2018, and Gunderson & Stillman 2015. 
+
+## English documents
+
+```{r}
+eng2022<-import_results(directory="Bibliographic_searches/English_searches/new_searches_CTmin_Tpref")
+bennett<-import_results(file="Bibliographic_searches/Backward_searches/Bennett_et_al_2018/Bennett_et_al_2018_ctmin.ris")
+gund<-import_results(file="Bibliographic_searches/Backward_searches/Gunderson_and_Stillman_2015/Gunderson_Stillman_2015_ctmin.ris")
+leiva<-import_results(file="Bibliographic_searches/Backward_searches/Leiva_et_al_2019/leiva_et_al_2019_ctmin.ris")
+navas<-import_results(file="Bibliographic_searches/Backward_searches/Navas_et_al_2021/Navas_et_al_2021_tpref.ris")
+
+eng<-merge_columns(eng, eng2022)
+eng<-merge_columns(eng, eng_scholar)
+eng<-merge_columns(eng, bennett)
+eng<-merge_columns(eng, gund)
+eng<-merge_columns(eng, leiva)
+eng<-merge_columns(eng, navas)
+
+
+deduplicated_eng<- remove_duplicates(eng, field="title", method="string_osa") # This method is quite conservative so it may miss some duplicates that can be removed in Rayyan later on. 
+
+deduplicated_eng<-deduplicated_eng %>% separate(start_page, c('start_page', 'end_page'),sep="-")
+
+deduplicated_eng<- mutate(deduplicated_eng, doi=ifelse(is.na(doi)=="TRUE", 0, doi))
+
+deduplicated_eng <- dplyr::select(deduplicated_eng, source_type, title, author, source, abstract, year, doi, volume, issue, start_page, end_page, language, url, database, keywords)  # 1694 records
+
+write_refs(deduplicated_eng, format="bib", file=TRUE) # Because this function stores the file in the project directly, this file was moved to "/English_searches/deduplicated_records" and renamed as "deduplicated_english_CTmin_Tpref.ris"
+```
+
+## French documents
+
+```{r}
+french2022<-import_results(directory="Bibliographic_searches/non-English_searches/French/new_searches_CTmin_Tpref")
+french<-merge_columns(french, french2022)
+
+deduplicated_french<- remove_duplicates(french, field="title", method="string_osa") # This method is quite conservative so it may miss some duplicates that can be removed in Rayyan later on. 
+
+deduplicated_french <- dplyr::select(deduplicated_french, source_type, title, author, source, abstract,  year, doi, url, keywords) # 492 records
+
+write_refs(deduplicated_french, format="ris", file=TRUE) # Because this function stores the file in the project directly, this file was moved to "/non-English_searches/French/deduplicated_records" and renamed as "deduplicated_french_CTmin_Tpref.ris"
+```
+
+
+## Japanese documents
+
+```{r}
+japanese<-import_results(file="Bibliographic_searches/non-English_searches/Japanese/from_Pottier_et_al_2022/articles_screened_abstracts_japanese.ris")
+japanese2022<-import_results(directory="Bibliographic_searches/non-English_searches/Japanese/new_searches_CTmin_Tpref")
+
+japanese<-merge_columns(japanese, japanese2022)
+
+deduplicated_japanese<- remove_duplicates(japanese, field="title", method="string_osa") # This method is quite conservative so it may miss some duplicates that can be removed in Rayyan later on. 
+
+deduplicated_japanese <- dplyr::select(deduplicated_japanese, source_type, title, author, source, abstract,  year, volume, issue, start_page, end_page, url, keywords) # 152 records
+
+write_refs(deduplicated_japanese, format="ris", file=TRUE) # Because this function stores the file in the project directly, this file was moved to "/non-English_searches/Japanese/deduplicated_records" and renamed as "deduplicated_japanese_CTmin_Tpref.ris"
+```
+
+
+## Portuguese documents
+
+```{r}
+portuguese2022<-import_results(directory="Bibliographic_searches/non-English_searches/Portuguese/new_searches_CTmin_Tpref")
+
+portuguese<-merge_columns(port, portuguese2022)
+
+deduplicated_portuguese<- remove_duplicates(portuguese, field="title", method="string_osa") # This method is quite conservative so it may miss some duplicates that can be removed in Rayyan later on. 
+
+deduplicated_portuguese <- dplyr::select(deduplicated_portuguese, source_type, title, author, source, abstract,  year, doi, url, keywords) # 576 records
+
+write_refs(deduplicated_portuguese, format="ris", file=TRUE) # Because this function stores the file in the project directly, this file was moved to "/non-English_searches/Portuguese/deduplicated_records" and renamed as "deduplicated_portuguese_CTmin_Tpref.ris"
+```
+
+## Simplified Chinese documents
+
+```{r}
+simp_chinese<-import_results(directory="Bibliographic_searches/non-English_searches/simplified_Chinese/from_Pottier_et_al_2022")
+simp_chinese2022<-import_results(directory="Bibliographic_searches/non-English_searches/simplified_Chinese/new_searches_CTmin_Tpref")
+
+simp_chinese<-merge_columns(simp_chinese, simp_chinese2022)
+
+deduplicated_simp_chinese<- remove_duplicates(simp_chinese, field="title", method="string_osa") # This method is quite conservative so it may miss some duplicates that can be removed in Rayyan later on. 
+
+deduplicated_simp_chinese <- dplyr::select(deduplicated_simp_chinese, source_type, title, author, source, abstract,  year, doi, url) # 27 records
+
+write_refs(deduplicated_simp_chinese, format="ris", file=TRUE) # Because this function stores the file in the project directly, this file was moved to "/non-English_searches/simplified_Chinese/deduplicated_records" and renamed as "deduplicated_simp_chinese_CTmin_Tpref.ris"
+```
+
+
+## Spanish documents
+
+```{r}
+spanish2022<-import_results(directory="Bibliographic_searches/non-English_searches/Spanish/new_searches_CTmin_Tpref")
+
+spanish<-merge_columns(span, spanish2022)
+
+deduplicated_spanish<- remove_duplicates(spanish, field="title", method="string_osa") # This method is quite conservative so it may miss some duplicates that can be removed in Rayyan later on. 
+
+deduplicated_spanish <- dplyr::select(deduplicated_spanish, source_type, title, author, source, abstract,  year, doi, url, keywords) # 490 records
+
+write_refs(deduplicated_spanish, format="ris", file=TRUE) # Because this function stores the file in the project directly, this file was moved to "/non-English_searches/Spanish/deduplicated_records" and renamed as "deduplicated_spanish_CTmin_Tpref.ris"
+```
+
+## Traditional Chinese documents 
+
+```{r}
+trad_chinese2022<-import_results(directory="Bibliographic_searches/non-English_searches/traditional_Chinese/new_searches_CTmin_Tpref")
+
+trad_chinese<-merge_columns(trad_chinese, trad_chinese2022)
+
+deduplicated_trad_chinese<- remove_duplicates(trad_chinese, field="title", method="string_osa") # This method is quite conservative so it may miss some duplicates that can be removed in Rayyan later on. 
+
+deduplicated_trad_chinese <- dplyr::select(deduplicated_trad_chinese, source_type, title, author, source, year) # 15 records
+
+write_refs(deduplicated_trad_chinese, format="ris", file=TRUE) # Because this function stores the file in the project directly, this file was moved to "/non-English_searches/traditional_Chinese/deduplicated_records" and renamed as "deduplicated_trad_chinese_CTmin_Tpref.ris"
+```
+
+
+# Package versions
+```{r}
+sessionInfo()
+```
+

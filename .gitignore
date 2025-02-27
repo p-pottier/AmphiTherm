@@ -1,0 +1,15 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.doc
+.docx
+.pptx
+.ppt
+data/amphibian_IUCN_maps/
+data_extraction/
+included_studies/
+manuscript/
+screening/
+bibliographic_searches/
+R/data_extraction_metadigitise.R
