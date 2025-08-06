@@ -44,7 +44,7 @@ pacman::p_load(tidyverse,
 ## *Load data and tree*
 
 ```{r}
-AmphiTherm <- read_csv("data/Cleaned_data_Amphitherm.csv") # Import data
+Amphitherm <- read_csv("data/Cleaned_data_Amphitherm.csv") # Import data
 
 tree <- read.tree("data/Consensus_tree_Jetz_Pyron_2018.tre") # Import tree
 ```
@@ -52,14 +52,16 @@ tree <- read.tree("data/Consensus_tree_Jetz_Pyron_2018.tre") # Import tree
 
 # **Figure 2** 
 
+Note that each figure underwent cosmetic changes in Microsoft PowerPoint / Adobe Illustrator
+
 ```{r, fig.height=10, fig.width=18}
 world <- ne_countries(scale = "large", returnclass = "sf")
 world <- world %>%
     filter(!grepl("Antarctica", name))
 
-AmphiTherm_map <- AmphiTherm # Copy dataset
+Amphitherm_map <- Amphitherm # Copy dataset
 
-AmphiTherm_map <- AmphiTherm_map %>%
+Amphitherm_map <- Amphitherm_map %>%
   mutate(metric = case_when(
     metric %in% c("CTmin", "LT50_cold") ~ "LTL",
     metric %in% c("CTmax", "LT50_hot") ~ "UTL",
@@ -77,7 +79,7 @@ map <- ggplot() +
   geom_hline(yintercept = -23.43663, colour = "gray", linetype = "dashed", size = 0.5) + 
   geom_sf(data = world, fill = "gray75", col = NA) + 
   coord_sf(xlim = c(-180, 180), ylim = c(-55.00099, 80)) + # Set the coordinate limits
-       geom_point(data=AmphiTherm_map,  # Display location of species for which we have coordinates
+       geom_point(data=Amphitherm_map,  # Display location of species for which we have coordinates
                   aes(x = longitude, 
                       y = latitude, 
                       fill=metric,
@@ -123,9 +125,9 @@ density <- ggplot() +
   geom_vline(xintercept = 0, colour = "gray", linetype = "dashed", size = 0.5) +
   geom_vline(xintercept = 23.43663, colour = "gray", linetype = "dashed", size = 0.5) +
   geom_vline(xintercept = -23.43663, colour = "gray", linetype = "dashed", size = 0.5) +
-  geom_histogram(data = filter(AmphiTherm_map, metric == "UTL"), aes(x = latitude), fill = "#e63946", alpha = 0.75, bins = 50, col = "black") +
-  geom_histogram(data = filter(AmphiTherm_map, metric == "PBT"), aes(x = latitude), fill = "#ffb703", alpha = 1, bins = 50, col="black") +
-  geom_histogram(data = filter(AmphiTherm_map, metric == "LTL"), aes(x = latitude), fill = "#2a9d8f", alpha = 0.8, bins = 50, col = "black") +
+  geom_histogram(data = filter(Amphitherm_map, metric == "UTL"), aes(x = latitude), fill = "#e63946", alpha = 0.75, bins = 50, col = "black") +
+  geom_histogram(data = filter(Amphitherm_map, metric == "PBT"), aes(x = latitude), fill = "#ffb703", alpha = 1, bins = 50, col="black") +
+  geom_histogram(data = filter(Amphitherm_map, metric == "LTL"), aes(x = latitude), fill = "#2a9d8f", alpha = 0.8, bins = 50, col = "black") +
   ylab("Number of estimates") + 
   coord_flip(xlim = c(-55.00099, 80)) + 
   theme_classic() +
@@ -148,13 +150,13 @@ ggsave(map_and_density, file = "fig/Figure_2ab.png", height=12, width=20, dpi=10
 #########
 
 # Remove observations from species not described at the species level (.sp) and extinct species
-AmphiTherm_iucn <- filter(AmphiTherm_map, !is.na(IUCN_status) & IUCN_status != "EX") %>% 
+Amphitherm_iucn <- filter(Amphitherm_map, !is.na(IUCN_status) & IUCN_status != "EX") %>% 
           distinct(species, .keep_all = TRUE) 
-AmphiTherm_iucn$IUCN_status <- factor(AmphiTherm_iucn$IUCN_status, levels = c("CR", "EN", "VU", "NT", "LC", "DD"))
+Amphitherm_iucn$IUCN_status <- factor(Amphitherm_iucn$IUCN_status, levels = c("CR", "EN", "VU", "NT", "LC", "DD"))
 
 # Plot the IUCN status threat distribution
 IUCN_status <- 
-ggplot(AmphiTherm_iucn) +
+ggplot(Amphitherm_iucn) +
   geom_bar(aes(x=1, fill=IUCN_status), width = 0.1)+ 
   coord_flip() + 
     theme_classic() +
@@ -174,28 +176,25 @@ ggplot(AmphiTherm_iucn) +
 ggsave(IUCN_status, file = "fig/Figure_2c.png", height=1.5, width=20, dpi=1000, bg="transparent")
 ```
 
-
-Note that each figure underwent cosmetic changes in Microsoft PowerPoint / Adobe Illustrator
-
 # **Figure 3**
 
 ```{r}
 # Process data
-AmphiTherm_tree <- dplyr::select(Amphitherm, order, family,species, metric, life_stage_tested, mean_trait) # Only select relevant variables
-AmphiTherm_tree$species <- gsub(" ", "_", AmphiTherm_tree$species) # Add underscore between species names
+Amphitherm_tree <- dplyr::select(Amphitherm, order, family,species, metric, life_stage_tested, mean_trait) # Only select relevant variables
+Amphitherm_tree$species <- gsub(" ", "_", Amphitherm_tree$species) # Add underscore between species names
 
-AmphiTherm_tree<-AmphiTherm_tree[AmphiTherm_tree$species %in% tree$tip.label, ] # Remove all species not matching the tree
+Amphitherm_tree<-Amphitherm_tree[Amphitherm_tree$species %in% tree$tip.label, ] # Remove all species not matching the tree
 
-pruned_tree<-drop.tip(tree, tree$tip.label[-match(AmphiTherm_tree$species, tree$tip.label)]) # Pruned tree that only contains species in the data 
+pruned_tree<-drop.tip(tree, tree$tip.label[-match(Amphitherm_tree$species, tree$tip.label)]) # Pruned tree that only contains species in the data 
 
-AmphiTherm_tree<-mutate(AmphiTherm_tree, tip_label=species) # create a column "tip.label" to match the data to the tree
+Amphitherm_tree<-mutate(Amphitherm_tree, tip_label=species) # create a column "tip.label" to match the data to the tree
 
-AmphiTherm_tree <- AmphiTherm_tree %>% 
+Amphitherm_tree <- Amphitherm_tree %>% 
   mutate(metric = ifelse(metric %in% c("CTmin", "LT50_cold"), "LTL",
                   ifelse(metric %in% c("CTmax", "LT50_hot"), "UTL",
                   ifelse(metric == "Tpref", "PBT", metric))))
 
-AmphiTherm_tree_summary <- AmphiTherm_tree %>%
+Amphitherm_tree_summary <- Amphitherm_tree %>%
   group_by(tip_label, metric) %>%  # Group by species and metric
   summarise(
     mean_trait = mean(mean_trait, na.rm = TRUE),  # Calculate mean for each metric
@@ -207,7 +206,7 @@ AmphiTherm_tree_summary <- AmphiTherm_tree %>%
     names_prefix = "mean_"
   ) %>%
   left_join(
-    AmphiTherm_tree %>%
+    Amphitherm_tree %>%
       group_by(tip_label) %>%
       summarise(
         n_es = n(),  # Total number of effect sizes across all metrics
@@ -219,12 +218,12 @@ AmphiTherm_tree_summary <- AmphiTherm_tree %>%
     log_n_es = log2(n_es + 1)  # Log + 1 for the plot
   )
 
-AmphiTherm_tree_taxonomy <- dplyr::select(AmphiTherm_tree, tip_label, order, family) # Only select relevant variables
-AmphiTherm_tree_taxonomy <- distinct(AmphiTherm_tree_taxonomy) # Remove duplicate species 
-AmphiTherm_tree_summary <- left_join(AmphiTherm_tree_summary, AmphiTherm_tree_taxonomy, by="tip_label") # Join the data to the calculated stats for each species
+Amphitherm_tree_taxonomy <- dplyr::select(Amphitherm_tree, tip_label, order, family) # Only select relevant variables
+Amphitherm_tree_taxonomy <- distinct(Amphitherm_tree_taxonomy) # Remove duplicate species 
+Amphitherm_tree_summary <- left_join(Amphitherm_tree_summary, Amphitherm_tree_taxonomy, by="tip_label") # Join the data to the calculated stats for each species
 
 # Classify life stages into 'adults', 'juveniles', or 'mix'
-AmphiTherm_tree <- AmphiTherm_tree %>%
+Amphitherm_tree <- Amphitherm_tree %>%
   group_by(tip_label) %>%
   mutate(life_stage_aggregated = case_when(
     life_stage_tested %in% c("larvae", "juveniles", "metamorphs") ~ "juveniles",
@@ -238,7 +237,7 @@ AmphiTherm_tree <- AmphiTherm_tree %>%
   )
 
 # Join this back to the main summary data
-AmphiTherm_tree_summary <- left_join(AmphiTherm_tree_summary, AmphiTherm_tree, by = "tip_label")
+Amphitherm_tree_summary <- left_join(Amphitherm_tree_summary, Amphitherm_tree, by = "tip_label")
 
 # Plot the annotated phylogenetic tree
 p <- ggtree(pruned_tree, 
@@ -248,7 +247,7 @@ p <- ggtree(pruned_tree,
          scale_colour_manual(name = "Order", 
                              values=c("#60935D", "#DD9F18"))
 
-p <- p %<+% AmphiTherm_tree_summary # Match data to the tree
+p <- p %<+% Amphitherm_tree_summary # Match data to the tree
 
 p2 <- p + geom_fruit(geom = geom_tile, # Heat map
                                  mapping = aes(fill = mean_LTL), 
@@ -312,19 +311,19 @@ ggsave(p5, file = "fig/Figure_3.png", height = 20, width =20, dpi = 1100, bg="tr
 
 ```{r}
 # Process data
-AmphiTherm_taxonomy<-read_csv("data/Metadata_Jetz_Pyron_2018.csv") # Load amphibian classification from Jetz and Pyron (2018)
-AmphiTherm_taxonomy$tip.label<-AmphiTherm_taxonomy$`Scientific Name` # Rename variable to match our dataset
-AmphiTherm_taxonomy$order<-AmphiTherm_taxonomy$Taxon # Rename variable to match our dataset
-AmphiTherm_taxonomy$tip.label <- gsub(" ", "_", AmphiTherm_taxonomy$tip.label) # Add underscore between species names
+Amphitherm_taxonomy<-read_csv("data/Metadata_Jetz_Pyron_2018.csv") # Load amphibian classification from Jetz and Pyron (2018)
+Amphitherm_taxonomy$tip.label<-Amphitherm_taxonomy$`Scientific Name` # Rename variable to match our dataset
+Amphitherm_taxonomy$order<-Amphitherm_taxonomy$Taxon # Rename variable to match our dataset
+Amphitherm_taxonomy$tip.label <- gsub(" ", "_", Amphitherm_taxonomy$tip.label) # Add underscore between species names
 
-AmphiTherm_tree_all<-dplyr::select(AmphiTherm, order, family, species, metric) # Only select relevant variables
-AmphiTherm_tree_all$species <- gsub(" ", "_", AmphiTherm_tree_all$species) # Add underscore between species names
+Amphitherm_tree_all<-dplyr::select(Amphitherm, order, family, species, metric) # Only select relevant variables
+Amphitherm_tree_all$species <- gsub(" ", "_", Amphitherm_tree_all$species) # Add underscore between species names
 
 
-AmphiTherm_tree_all<-mutate(AmphiTherm_tree_all, tip.label= species) # create a column "tip.label" to match the data to the tree
+Amphitherm_tree_all<-mutate(Amphitherm_tree_all, tip.label= species) # create a column "tip.label" to match the data to the tree
 
 # Assign LT50 metrics to UTL or LTL
-AmphiTherm_tree_all <- AmphiTherm_tree_all %>%
+Amphitherm_tree_all <- Amphitherm_tree_all %>%
   mutate(metric = case_when(
     metric %in% c("CTmin", "LT50_cold") ~ "LTL",
     metric %in% c("CTmax", "LT50_hot") ~ "UTL",
@@ -332,7 +331,7 @@ AmphiTherm_tree_all <- AmphiTherm_tree_all %>%
     TRUE ~ metric
   ))
 
-AmphiTherm_tree_summary <- AmphiTherm_tree_all %>%
+Amphitherm_tree_summary <- Amphitherm_tree_all %>%
   mutate(UTL = ifelse(metric == "UTL", "UTL", NA),
          PBT = ifelse(metric == "PBT", "PBT", NA),
          LTL = ifelse(metric == "LTL", "LTL", NA)) %>%
@@ -343,15 +342,15 @@ AmphiTherm_tree_summary <- AmphiTherm_tree_all %>%
     LTL = ifelse(any(!is.na(LTL)), "LTL", NA)
   )
 
-AmphiTherm_tree_taxo_all<-dplyr::select(AmphiTherm_tree_all, tip.label, order, family) # Only select relevant variables
-AmphiTherm_tree_taxo_all<-distinct(AmphiTherm_tree_taxo_all) # Remove duplicate species 
-AmphiTherm_tree_summary<-left_join(AmphiTherm_tree_summary, AmphiTherm_tree_taxo_all, by="tip.label") # Join the data to the calculated stats for each species
+Amphitherm_tree_taxo_all<-dplyr::select(Amphitherm_tree_all, tip.label, order, family) # Only select relevant variables
+Amphitherm_tree_taxo_all<-distinct(Amphitherm_tree_taxo_all) # Remove duplicate species 
+Amphitherm_tree_summary<-left_join(Amphitherm_tree_summary, Amphitherm_tree_taxo_all, by="tip.label") # Join the data to the calculated stats for each species
 
 species_in_tree<- data.frame(tip.label=tree$tip.label)# Get all species names from Jetz and Pyron (2018)
-AmphiTherm_tree_summary<-full_join(AmphiTherm_tree_summary, species_in_tree)
-AmphiTherm_tree_summary<- full_join(AmphiTherm_tree_summary, AmphiTherm_taxonomy, by="tip.label")
-AmphiTherm_tree_summary <- mutate(AmphiTherm_tree_summary, Order = coalesce(order.x, order.y)) # Combine content columns
-AmphiTherm_tree_summary<-filter(AmphiTherm_tree_summary, Order!="Outgroup") # Remove humans
+Amphitherm_tree_summary<-full_join(Amphitherm_tree_summary, species_in_tree)
+Amphitherm_tree_summary<- full_join(Amphitherm_tree_summary, Amphitherm_taxonomy, by="tip.label")
+Amphitherm_tree_summary <- mutate(Amphitherm_tree_summary, Order = coalesce(order.x, order.y)) # Combine content columns
+Amphitherm_tree_summary<-filter(Amphitherm_tree_summary, Order!="Outgroup") # Remove humans
 
 # Plot the annotated phylogenetic tree
 p_all<-ggtree(tree, 
@@ -361,7 +360,7 @@ p_all<-ggtree(tree,
        scale_colour_manual(values=c("#60935D", "#DD9F18", "#925D83"),
                            na.value="black")
 
-p_all <- p_all %<+% AmphiTherm_tree_summary # Match data to the tree
+p_all <- p_all %<+% Amphitherm_tree_summary # Match data to the tree
 
 p2_all <- p_all + new_scale_fill() + geom_fruit(geom = geom_tile, # Heat map
                              mapping = aes(fill = LTL), 
