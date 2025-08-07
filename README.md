@@ -2,7 +2,7 @@
 
 This repository contains the data and code to reproduce the results from Pottier P., Oh R.R.Y, Pollo P., Rivera-Villanueva A.N., Yang Y., Varon S., Longo A.V., Burke S., Lin H-Y., Valdebenito J.O., Amano T., Drobniak S.M., Nakagawa, S., and Claunch N. (2025). *AmphiTherm*: a comprehensive database of amphibian thermal tolerance and preference. *Scientific Data**
 
-You can cite this repository and its contents using this DOI: [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14978243.svg)](https://doi.org/10.5281/zenodo.14978243)
+You can cite this repository and its contents using this DOI: [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.16751427.svg)](https://doi.org/10.5281/zenodo.16751427)
 
 You can also access a Shiny App to filter the database at: https://p-pottier.shinyapps.io/AmphiTherm-Explorer/
 
