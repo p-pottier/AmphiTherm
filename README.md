@@ -1,5 +1,11 @@
 # *AmphiTherm*: A comprehensive database of amphibian thermal tolerance and preference.
 
+This repository contains the data and code to reproduce the results from Pottier P., Oh R.R.Y, Pollo P., Rivera-Villanueva A.N., Yang Y., Varon S., Longo A.V., Burke S., Lin H-Y., Valdebenito J.O., Amano T., Drobniak S.M., Nakagawa, S., and Claunch N. (2025). *AmphiTherm*: a comprehensive database of amphibian thermal tolerance and preference. *Scientific Data**
+
+You can cite this repository and its contents using this DOI: [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14978243.svg)](https://doi.org/10.5281/zenodo.14978243)
+
+You can also access a Shiny App to filter the database at: https://p-pottier.shinyapps.io/AmphiTherm-Explorer/
+
 Below is a description of the different folders and their content.
 
 Please feel free to contact Patrice Pottier (patrice.pottier37@gmail.com) if you need assistance navigating these documents.
@@ -20,6 +26,8 @@ We provide different datasets to help users
 
 * `Consensus_tree_Jetz_Pyron_2018.tre`: Consensus tree sampled from the posterior distribution by Jetz & Pyron (2018) https://doi.org/10.1038/s41559-018-0515-5 
 
+* `Metadata_AmphiTherm.xlsx1`: Metadata files listing the description of each column of the AmphiTherm database.
+
 ## **R/**
 
 * `data_curation.Rmd`: Code detailing the different steps of the data curation and calculation of descriptive statistics.
@@ -35,4 +43,8 @@ We feel strongly about the importance of acknowledging the original authors of t
 
 * `AmphiTherm_database.ris`: Bibliographic file containing all the references included in the database (RIS format)
 * `AmphiTherm_database.bib`: Bibliographic file containing all the references included in the database (BibTex format)
+
+## **shiny_app/** 
+
+This folder contains the data and code (`app.R`) to build the shiny app. 
 

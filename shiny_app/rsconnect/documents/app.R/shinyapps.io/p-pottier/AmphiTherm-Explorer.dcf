@@ -1,0 +1,10 @@
+name: AmphiTherm-Explorer
+title:
+username: p-pottier
+account: p-pottier
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 15169802
+bundleId: 10738851
+url: https://p-pottier.shinyapps.io/AmphiTherm-Explorer/
+version: 1
