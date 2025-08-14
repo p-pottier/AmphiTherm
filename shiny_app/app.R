@@ -228,45 +228,35 @@ server <- function(input, output, session) {
     dfm <- filteredData()
     
     ggplot() +
-      # Tropics band across the map (no legend)
       annotate("rect",
                xmin = -180, xmax = 180,
                ymin = -23.43663, ymax = 23.43663,
                fill = "lightgray", alpha = 0.3
       ) +
-      # Reference lines
       geom_hline(yintercept = c(-23.43663, 0, 23.43663),
                  colour = "gray", linetype = "dashed", linewidth = 0.5) +
       
-      # Base map
       geom_sf(data = world_plot, fill = "gray75", col = NA) +
       coord_sf(xlim = c(-180, 180), ylim = c(-55, 80), expand = FALSE) +
-      
-      # Sampling points (as before)
-      geom_point(
+            geom_point(
         data = dfm,
         aes(x = longitude, y = latitude, fill = metric_group),
         shape = 21, colour = "black", alpha = 0.7, size = 4
       ) +
       
-      # Metric legend (unchanged, clean circular keys)
       scale_fill_manual(
         name   = "Metric",
         values = c(LTL = "#2a9d8f", PBT = "#ffb703", UTL = "#e63946"),
         guide  = guide_legend(title.position = "top", title.hjust = 0,
                               override.aes = list(shape = 21, size = 5))
       ) +
-      
-      # --- In-panel "Tropics" label (just text, no box) ---
-      # Positioned just to the right and above the band’s bottom-left corner
       annotate("text",
-               x = -175,                       # a little to the right of the left border
-               y = -23.43663 + 2.0,           # slightly above the bottom edge of the band
+               x = -175,                      
+               y = -23.43663 + 2.0,           
                label = "Tropics",
                hjust = 0, vjust = 0,
                size = 6, colour = "grey30"
       ) +
-      
       labs(title = "Map of sampling locations", x = "Longitude", y = "Latitude") +
       theme_minimal(base_size = 14) +
       theme(
