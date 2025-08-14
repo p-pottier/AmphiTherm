@@ -17,15 +17,15 @@ world_for_join <- ne_countries(scale="large", returnclass="sf") %>%
 world_plot <- ne_countries(scale="small", returnclass="sf") %>%
   filter(!grepl("Antarctica", name))
 
-# --- Helper to preprocess either CSV ----
+# --- Helper to preprocess either the cleaned or curated dataset ----
 preprocess_data <- function(df) {
   df2 <- df %>%
     dplyr::mutate(
       metric_group = dplyr::case_when(
         metric %in% c("CTmin","LT50_cold") ~ "LTL",
         metric %in% c("CTmax","LT50_hot")  ~ "UTL",
-        metric == "Tpref"                 ~ "PBT",
-        TRUE                              ~ NA_character_
+        metric == "Tpref"                  ~ "PBT",
+        TRUE                               ~ NA_character_
       ),
       life_stage_tested = factor(
         tolower(life_stage_tested),
@@ -66,12 +66,14 @@ ui <- navbarPage(
              sidebarPanel(width = 3,
                           radioButtons("curated", "Curated database", choices = c("No","Yes"), selected = "Yes"),
                           tags$hr(),
-                          selectInput("order",      "Order",      choices = c("All", sort(unique(data_uncurated$order))), selected = "All"),
-                          selectInput("family",     "Family",     choices = "All", selected = "All"),
-                          selectInput("species",    "Species",    choices = "All", selected = "All"),
-                          selectInput("metric",     "Metric",     choices = c("All","UTL","LTL","PBT"), selected = "All"),
-                          selectInput("country",    "Country",    choices = "All", selected = "All"),
-                          selectInput("life_stage", "Life stage", choices = c("All", levels(data_uncurated$life_stage_tested)), selected = "All")
+                          selectInput("order",      "Order",      choices = c("All", sort(unique(data_uncurated$order))), selected = "All", multiple = TRUE),
+                          selectInput("family",     "Family",     choices = "All", selected = "All", multiple = TRUE),
+                          selectInput("species",    "Species",    choices = "All", selected = "All", multiple = TRUE),
+                          selectInput("metric",     "Metric",     choices = c("All","UTL","LTL","PBT"), selected = "All", multiple = TRUE),
+                          selectInput("country",    "Country",    choices = "All", selected = "All", multiple = TRUE),
+                          selectInput("life_stage", "Life stage",
+                                      choices = c("All", as.character(levels(data_uncurated$life_stage_tested)) ),
+                                      selected = "All", multiple = TRUE)
              ),
              mainPanel(
                plotOutput("mapIucn", height = "550px"),
@@ -104,62 +106,202 @@ server <- function(input, output, session) {
     if (input$curated == "Yes") data_curated else data_uncurated
   })
   
-  # cascading filters
-  observe({
-    df1 <- baseData()
-    if (input$order != "All") df1 <- df1 %>% filter(order == input$order)
-    fams <- sort(unique(df1$family))
-    updateSelectInput(session, "family",
-                      choices  = c("All", fams),
-                      selected = if (input$family %in% fams) input$family else "All"
-    )
-  })
-  observe({
-    df2 <- baseData()
-    if (input$order  != "All") df2 <- df2 %>% filter(order == input$order)
-    if (input$family != "All") df2 <- df2 %>% filter(family == input$family)
-    specs <- sort(unique(df2$species))
-    updateSelectInput(session, "species",
-                      choices  = c("All", specs),
-                      selected = if (input$species %in% specs) input$species else "All"
-    )
-  })
-  observe({
-    df3 <- baseData()
-    if (input$order   != "All") df3 <- df3 %>% filter(order == input$order)
-    if (input$family  != "All") df3 <- df3 %>% filter(family == input$family)
-    if (input$species != "All") df3 <- df3 %>% filter(species == input$species)
-    ctrs <- sort(unique(df3$country))
-    updateSelectInput(session, "country",
-                      choices  = c("All", ctrs),
-                      selected = if (input$country %in% ctrs) input$country else "All"
-    )
-  })
-  observe({
-    df4 <- baseData()
-    if (input$order   != "All") df4 <- df4 %>% filter(order == input$order)
-    if (input$family  != "All") df4 <- df4 %>% filter(family == input$family)
-    if (input$species != "All") df4 <- df4 %>% filter(species == input$species)
-    if (input$country != "All") df4 <- df4 %>% filter(country == input$country)
-    lss4 <- sort(unique(df4$life_stage_tested))
-    updateSelectInput(session, "life_stage",
-                      choices  = c("All", lss4),
-                      selected = if (input$life_stage %in% lss4) input$life_stage else "All"
-    )
-  })
+  # ---------- helpers ----------
+  `%||%` <- function(a, b) if (is.null(a)) b else a
   
+  # When All is present with others, decide if user added All or added real values
+  make_all_handler <- function(id) {
+    prev <- reactiveVal("All")
+    observeEvent(input[[id]], {
+      v <- input[[id]] %||% "All"
+      p <- prev()
+      
+      if ("All" %in% v && length(v) > 1) {
+        added <- setdiff(v, p)
+        if ("All" %in% added) {
+          # user clicked All -> keep only All
+          freezeReactiveValue(input, id)
+          updateSelectInput(session, id, selected = "All")
+          prev("All")
+          return(invisible(NULL))
+        } else {
+          # user added specific values while All was there -> drop All
+          v2 <- setdiff(v, "All")
+          freezeReactiveValue(input, id)
+          updateSelectInput(session, id, selected = v2)
+          prev(v2)
+          return(invisible(NULL))
+        }
+      }
+      prev(v)
+    }, ignoreInit = TRUE)
+    prev
+  }
+  
+  prev_order      <- make_all_handler("order")
+  prev_family     <- make_all_handler("family")
+  prev_species    <- make_all_handler("species")
+  prev_metric     <- make_all_handler("metric")
+  prev_country    <- make_all_handler("country")
+  prev_life_stage <- make_all_handler("life_stage")
+  
+  # expand All using valid choices computed upstream
+  expand_all <- function(sel, all_vals) {
+    if (is.null(sel) || identical(sel, "All") || (length(sel) == 1 && sel[1] == "All")) {
+      all_vals
+    } else sel
+  }
+  
+  # keep current selection if still valid; otherwise "All"
+  keep_or_all <- function(sel, valid_no_all) {
+    if (is.null(sel) || identical(sel, "All") || (length(sel) == 1 && sel[1] == "All")) {
+      "All"
+    } else {
+      x <- intersect(sel, valid_no_all)
+      if (length(x)) x else "All"
+    }
+  }
+  
+  # ---------- initial population (show all options at load) ----------
+  observeEvent(baseData(), {
+    df <- baseData()
+    
+    freezeReactiveValue(input, "order")
+    updateSelectInput(session, "order",
+                      choices  = c("All", sort(unique(df$order))),
+                      selected = "All")
+    
+    freezeReactiveValue(input, "family")
+    updateSelectInput(session, "family",
+                      choices  = c("All", sort(unique(df$family))),
+                      selected = "All")
+    
+    freezeReactiveValue(input, "species")
+    updateSelectInput(session, "species",
+                      choices  = c("All", sort(unique(df$species))),
+                      selected = "All")
+    
+    freezeReactiveValue(input, "metric")
+    updateSelectInput(session, "metric",
+                      choices  = c("All","UTL","LTL","PBT"),
+                      selected = "All")
+    
+    freezeReactiveValue(input, "country")
+    updateSelectInput(session, "country",
+                      choices  = c("All", sort(unique(df$country))),
+                      selected = "All")
+    
+    freezeReactiveValue(input, "life_stage")
+    updateSelectInput(session, "life_stage",
+                      choices  = c("All", as.character(levels(df$life_stage_tested))),
+                      selected = "All")
+    
+    # reset "previous" trackers
+    prev_order("All"); prev_family("All"); prev_species("All")
+    prev_metric("All"); prev_country("All"); prev_life_stage("All")
+  }, priority = 100)
+  
+  # ---------- cascading choices (downstream only) ----------
+  # Order -> Family
+  observeEvent(list(input$order, baseData()), {
+    df <- baseData()
+    ord_valid <- sort(unique(df$order))
+    df1 <- df %>% filter(order %in% expand_all(input$order, ord_valid))
+    fam_valid <- sort(unique(df1$family))
+    
+    new_sel <- keep_or_all(isolate(input$family), fam_valid)
+    freezeReactiveValue(input, "family")
+    updateSelectInput(session, "family",
+                      choices  = c("All", fam_valid),
+                      selected = new_sel)
+    prev_family(new_sel)
+  }, ignoreInit = TRUE)
+  
+  # Order + Family -> Species
+  observeEvent(list(input$order, input$family, baseData()), {
+    df <- baseData()
+    ord_valid <- sort(unique(df$order))
+    df1 <- df %>% filter(order  %in% expand_all(input$order,  ord_valid))
+    fam_valid <- sort(unique(df1$family))
+    df2 <- df1 %>% filter(family %in% expand_all(input$family, fam_valid))
+    sp_valid  <- sort(unique(df2$species))
+    
+    new_sel <- keep_or_all(isolate(input$species), sp_valid)
+    freezeReactiveValue(input, "species")
+    updateSelectInput(session, "species",
+                      choices  = c("All", sp_valid),
+                      selected = new_sel)
+    prev_species(new_sel)
+  }, ignoreInit = TRUE)
+  
+  # Order + Family + Species -> Country
+  observeEvent(list(input$order, input$family, input$species, baseData()), {
+    df <- baseData()
+    ord_valid <- sort(unique(df$order))
+    df1 <- df %>% filter(order   %in% expand_all(input$order,   ord_valid))
+    fam_valid <- sort(unique(df1$family))
+    df2 <- df1 %>% filter(family  %in% expand_all(input$family,  fam_valid))
+    sp_valid  <- sort(unique(df2$species))
+    df3 <- df2 %>% filter(species %in% expand_all(input$species, sp_valid))
+    ctry_valid <- sort(unique(df3$country))
+    
+    new_sel <- keep_or_all(isolate(input$country), ctry_valid)
+    freezeReactiveValue(input, "country")
+    updateSelectInput(session, "country",
+                      choices  = c("All", ctry_valid),
+                      selected = new_sel)
+    prev_country(new_sel)
+  }, ignoreInit = TRUE)
+  
+  # Order + Family + Species + Country -> Life stage
+  observeEvent(list(input$order, input$family, input$species, input$country, baseData()), {
+    df <- baseData()
+    ord_valid <- sort(unique(df$order))
+    df1 <- df %>% filter(order   %in% expand_all(input$order,   ord_valid))
+    fam_valid <- sort(unique(df1$family))
+    df2 <- df1 %>% filter(family  %in% expand_all(input$family,  fam_valid))
+    sp_valid  <- sort(unique(df2$species))
+    df3 <- df2 %>% filter(species %in% expand_all(input$species, sp_valid))
+    ctry_valid <- sort(unique(df3$country))
+    df4 <- df3 %>% filter(country %in% expand_all(input$country, ctry_valid))
+    stage_valid <- sort(unique(as.character(df4$life_stage_tested)))
+    
+    new_sel <- keep_or_all(as.character(isolate(input$life_stage)), stage_valid)
+    freezeReactiveValue(input, "life_stage")
+    updateSelectInput(session, "life_stage",
+                      choices  = c("All", stage_valid),
+                      selected = new_sel)
+    prev_life_stage(new_sel)
+  }, ignoreInit = TRUE)
+  
+  # ---------- filtered data (uses upstream expansion) ----------
   filteredData <- reactive({
     df <- baseData()
-    if (input$order      != "All") df <- df %>% filter(order == input$order)
-    if (input$family     != "All") df <- df %>% filter(family == input$family)
-    if (input$species    != "All") df <- df %>% filter(species == input$species)
-    if (input$metric     != "All") df <- df %>% filter(metric_group == input$metric)
-    if (input$country    != "All") df <- df %>% filter(country == input$country)
-    if (input$life_stage != "All") df <- df %>% filter(life_stage_tested == input$life_stage)
-    df
+    
+    # upstream expansion sets for each level
+    ord_set   <- expand_all(input$order,   sort(unique(df$order)))
+    df1 <- df %>% filter(order %in% ord_set)
+    
+    fam_set   <- expand_all(input$family,  sort(unique(df1$family)))
+    df2 <- df1 %>% filter(family %in% fam_set)
+    
+    sp_set    <- expand_all(input$species, sort(unique(df2$species)))
+    df3 <- df2 %>% filter(species %in% sp_set)
+    
+    met_set   <- expand_all(input$metric,  c("UTL","LTL","PBT"))
+    df4 <- df3 %>% filter(metric_group %in% met_set)
+    
+    ctry_set  <- expand_all(input$country, sort(unique(df4$country)))
+    df5 <- df4 %>% filter(country %in% ctry_set)
+    
+    stage_set <- expand_all(as.character(input$life_stage),
+                            sort(unique(as.character(df5$life_stage_tested))))
+    df6 <- df5 %>% filter(as.character(life_stage_tested) %in% stage_set)
+    
+    df6
   })
   
-  # Database display: subset columns
+  # ---------- table / downloads ----------
   output$table <- renderDT({
     cols <- c(
       "ref","title","pub_year","peer_reviewed","doi","language",
@@ -209,24 +351,20 @@ server <- function(input, output, session) {
       mutate(Metric = recode(Metric,
                              LTL="Lower thermal limits (LTL)",
                              PBT="Preferred body temperatures (PBT)",
-                             UTL="Upper thermal limits (UTL)"))
-    datatable(
-      df,
-      rownames = FALSE,
-      class    = 'compact stripe',
-      options  = list(dom = 't')
-    )
+                             UTL="Upper thermal limits (UTL)"
+      ))
+    datatable(df, rownames = FALSE, class='compact stripe', options = list(dom = 't'))
   })
   
-  mean_sd_df <- function(x) {
-    m <- mean(x, na.rm=TRUE); s <- sd(x, na.rm=TRUE)
-    data.frame(y=m, ymin=m-s, ymax=m+s)
+  # mean±SD helper (draw only if n > 1 in that group)
+  mean_sd_df <- function(y) {
+    m <- mean(y, na.rm=TRUE); s <- sd(y, na.rm=TRUE)
+    data.frame(y = m, ymin = m - s, ymax = m + s)
   }
   
   # --- MAP
   output$mapIucn <- renderPlot({
     dfm <- filteredData()
-    
     ggplot() +
       annotate("rect",
                xmin = -180, xmax = 180,
@@ -235,15 +373,13 @@ server <- function(input, output, session) {
       ) +
       geom_hline(yintercept = c(-23.43663, 0, 23.43663),
                  colour = "gray", linetype = "dashed", linewidth = 0.5) +
-      
       geom_sf(data = world_plot, fill = "gray75", col = NA) +
       coord_sf(xlim = c(-180, 180), ylim = c(-55, 80), expand = FALSE) +
-            geom_point(
+      geom_point(
         data = dfm,
         aes(x = longitude, y = latitude, fill = metric_group),
         shape = 21, colour = "black", alpha = 0.7, size = 4
       ) +
-      
       scale_fill_manual(
         name   = "Metric",
         values = c(LTL = "#2a9d8f", PBT = "#ffb703", UTL = "#e63946"),
@@ -251,11 +387,8 @@ server <- function(input, output, session) {
                               override.aes = list(shape = 21, size = 5))
       ) +
       annotate("text",
-               x = -175,                      
-               y = -23.43663 + 2.0,           
-               label = "Tropics",
-               hjust = 0, vjust = 0,
-               size = 6, colour = "grey30"
+               x = -175, y = -23.43663 + 2.0, label = "Tropics",
+               hjust = 0, vjust = 0, size = 6, colour = "grey30"
       ) +
       labs(title = "Map of sampling locations", x = "Longitude", y = "Latitude") +
       theme_minimal(base_size = 14) +
@@ -276,11 +409,7 @@ server <- function(input, output, session) {
       )
   })
   
-  
-  
-  
-  
-  # --- IUCN stacked bar 
+  # --- IUCN stacked bar
   output$iucnPlot <- renderPlot({
     dfm <- filteredData()
     iucn_df <- dfm %>%
@@ -288,7 +417,6 @@ server <- function(input, output, session) {
       distinct(species, .keep_all=TRUE) %>%
       mutate(IUCN_status = factor(IUCN_status,
                                   levels=c("DD","LC","NT","VU","EN","CR")))
-    
     ggplot(iucn_df, aes(x=1, fill=IUCN_status)) +
       geom_bar(width=0.15, position = position_stack(reverse = TRUE)) +
       geom_text(stat="count",
@@ -323,19 +451,21 @@ server <- function(input, output, session) {
       ylab("Number of species")
   })
   
-  # --- Jitter plots ---
+  # --- Jitter plots (mean±SD only when n > 1) ---
   output$jitterMetric <- renderPlot({
     dfm <- filteredData()
     ggplot(dfm, aes(x=metric_group, y=mean_trait, fill=metric_group)) +
       geom_point(shape=21, color="black", alpha=1, size=3,
                  position=position_jitter(width=0.15)) +
-      stat_summary(aes(color = metric_group),
-                   fun.data = mean_sd_df,
-                   geom = "pointrange",
-                   size = 1.2,
-                   position = position_nudge(x = 0.3),
-                   show.legend = FALSE) +
-      scale_fill_manual(name = "Metric", 
+      stat_summary(
+        aes(color = metric_group),
+        fun.data = function(y) if (sum(!is.na(y)) > 1) mean_sd_df(y) else NULL,
+        geom = "pointrange",
+        size = 1.2,
+        position = position_nudge(x = 0.3),
+        show.legend = FALSE
+      ) +
+      scale_fill_manual(name = "Metric",
                         values=c("LTL"="#2a9d8f","PBT"="#ffb703","UTL"="#e63946")) +
       scale_color_manual(values=c("LTL"="#2a9d8f","PBT"="#ffb703","UTL"="#e63946")) +
       labs(title="Variation across thermal traits",
@@ -351,7 +481,7 @@ server <- function(input, output, session) {
         legend.position = c(0.98, 0.02),
         legend.justification = c("right","bottom"),
         legend.direction = "horizontal",
-        legend.background = element_blank(),   
+        legend.background = element_blank(),
         legend.key = element_blank(),
         legend.title = element_text(size=14, face="bold"),
         legend.text  = element_text(size=13)
@@ -360,15 +490,17 @@ server <- function(input, output, session) {
   
   output$jitterLifeStage <- renderPlot({
     dfm <- filteredData() %>% filter(!is.na(life_stage_tested))
-    ggplot(dfm, aes(x=life_stage_tested, y=mean_trait, fill=metric_group)) +  
-      geom_point(shape=21, color="black", alpha=1, size=3,                     
+    ggplot(dfm, aes(x=life_stage_tested, y=mean_trait, fill=metric_group)) +
+      geom_point(shape=21, color="black", alpha=1, size=3,
                  position=position_jitter(width=0.15)) +
-      stat_summary(aes(color = metric_group),
-                   fun.data = mean_sd_df,
-                   geom = "pointrange",
-                   size = 1.2,
-                   position = position_nudge(x = 0.3),
-                   show.legend = FALSE) +
+      stat_summary(
+        aes(color = metric_group),
+        fun.data = function(y) if (sum(!is.na(y)) > 1) mean_sd_df(y) else NULL,
+        geom = "pointrange",
+        size = 1.2,
+        position = position_nudge(x = 0.3),
+        show.legend = FALSE
+      ) +
       scale_fill_manual(name = "Metric",
                         values=c("LTL"="#2a9d8f","PBT"="#ffb703","UTL"="#e63946"),
                         guide = guide_legend(nrow = 1, byrow = TRUE, title.position="top")) +
@@ -391,6 +523,7 @@ server <- function(input, output, session) {
 
 # --- 4. Run the App ----
 shinyApp(ui, server)
+
 
 # --- 5. Deploy Shiny App ----
 # dr <- getwd()
